@@ -1,0 +1,348 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  SELLER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+enum FulfillmentType {
+  PICKUP
+  HOME_DELIVERY
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  FULFILLED
+}
+
+model User {
+  id           String            @id @default(uuid())
+  email        String            @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         Role              @default(CUSTOMER)
+  isActive     Boolean           @default(true)
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  customer     CustomerProfile?
+  seller       SellerProfile?
+  reviews      Review[]
+  notifications Notification[]
+  auditLogs    AuditLog[]
+  plantDiagnoses PlantDiagnosis[]
+
+  @@index([email])
+  @@index([role])
+  @@index([resetPasswordToken])
+}
+
+model CustomerProfile {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultAddress String?
+  city           String?
+  state          String?   @default("Karnataka")
+  pincode        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  orders         Order[]
+  reservations   Reservation[]
+}
+
+model SellerProfile {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName     String
+  ownerName        String
+  phone            String
+  gstin            String?
+  isVerified       Boolean   @default(false)
+  verifiedAt       DateTime?
+  state            String    @default("Karnataka")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  nurseries        Nursery[]
+}
+
+model Nursery {
+  id                  String         @id @default(uuid())
+  sellerId            String
+  seller              SellerProfile  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  name                String
+  description         String?
+  address             String
+  city                String
+  district            String?
+  state               String         @default("Karnataka")
+  pincode             String
+  latitude            Float
+  longitude           Float
+  phone               String
+  offersHomeDelivery  Boolean        @default(true)
+  offersPickup        Boolean        @default(true)
+  deliveryBaseCharge  Float          @default(50.0)
+  deliveryPerKmCharge Float          @default(10.0)
+  freeDeliveryAbove   Float?
+  isActive            Boolean        @default(true)
+  isApproved          Boolean        @default(false)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  products            Product[]
+  reservations        Reservation[]
+  orders              Order[]
+  reviews             Review[]
+
+  @@index([city])
+  @@index([state])
+  @@index([isApproved, isActive])
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  icon        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+}
+
+model Product {
+  id             String         @id @default(uuid())
+  nurseryId      String
+  nursery        Nursery        @relation(fields: [nurseryId], references: [id], onDelete: Cascade)
+  categoryId     String
+  category       Category       @relation(fields: [categoryId], references: [id])
+  name           String
+  variety        String?
+  description    String?
+  price          Float
+  originalPrice  Float?
+  unit           String         @default("piece") // plant, kg, packet, bag, liter
+  inStock        Boolean        @default(true)
+  stockQuantity  Int            @default(0)
+  minOrderQty    Int            @default(1)
+  isOrganic      Boolean        @default(false)
+  isPublished    Boolean        @default(true)
+  treatmentTarget String?       // keywords e.g. "fungicide, blight, neem oil, organic pest control"
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  images         ProductImage[]
+  inventory      Inventory[]
+  orderItems     OrderItem[]
+  reviews        Review[]
+
+  @@index([nurseryId])
+  @@index([categoryId])
+  @@index([isPublished, inStock])
+  @@index([treatmentTarget])
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batchNumber String?
+  quantity    Int      @default(0)
+  lowStockAlert Int    @default(5)
+  updatedAt   DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model Reservation {
+  id               String            @id @default(uuid())
+  customerId       String
+  customer         CustomerProfile   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  nurseryId        String
+  nursery          Nursery           @relation(fields: [nurseryId], references: [id], onDelete: Cascade)
+  pickupDate       DateTime
+  pickupTimeSlot   String?
+  status           ReservationStatus @default(PENDING)
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  orders           Order[]
+
+  @@index([customerId])
+  @@index([nurseryId])
+  @@index([status])
+}
+
+model Order {
+  id               String          @id @default(uuid())
+  customerId       String
+  customer         CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  nurseryId        String
+  nursery          Nursery         @relation(fields: [nurseryId], references: [id])
+  reservationId    String?
+  reservation      Reservation?    @relation(fields: [reservationId], references: [id])
+  totalAmount      Float
+  status           OrderStatus     @default(PENDING)
+  fulfillmentType  FulfillmentType @default(PICKUP)
+  statusHistory    Json?           // Array of { status, timestamp, note }
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  items            OrderItem[]
+  payment          Payment?
+  deliveryDetails  DeliveryDetails?
+
+  @@index([customerId])
+  @@index([nurseryId])
+  @@index([reservationId])
+  @@index([status])
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  orderId       String        @unique
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentMethod String        // UPI, PHONEPE, CASH_ON_PICKUP, COD
+  transactionId String?
+  status        PaymentStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model DeliveryDetails {
+  id           String   @id @default(uuid())
+  orderId      String   @unique
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  recipientName String
+  phone        String
+  address      String
+  city         String
+  pincode      String
+  notes        String?
+  createdAt    DateTime @default(now())
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nurseryId  String?
+  nursery    Nursery? @relation(fields: [nurseryId], references: [id], onDelete: Cascade)
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rating     Int      @default(5)
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([nurseryId])
+  @@index([productId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+}
+
+model PlantDiagnosis {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cropOrPlant     String?
+  imagePath       String
+  diseaseDetected String?
+  confidenceScore Float?
+  symptoms        String?
+  possibleCauses  String?
+  treatmentAdvice String?
+  preventionAdvice String?
+  disclaimer      String   @default("Plant Doctor AI provides preliminary guidance based on the submitted image. Its results may be inaccurate and are not a substitute for professional agricultural diagnosis.")
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+}
