@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../services/api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useLanguage } from '../../context/LanguageContext.jsx';
 import PlantImage from '../../components/common/PlantImage.jsx';
 import {
   Package,
@@ -20,11 +21,14 @@ import {
   ShieldCheck,
   Truck,
   RotateCcw,
+  Star,
+  MessageSquare,
 } from 'lucide-react';
 
 export default function OrderDetailsPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,6 +36,14 @@ export default function OrderDetailsPage() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Review Form State
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   // UPI Payment State
   const [upiData, setUpiData] = useState(null);
@@ -113,6 +125,30 @@ export default function OrderDetailsPage() {
       setUpiErrorMsg(err.response?.data?.message || 'Verification failed. Please double check your UTR.');
     } finally {
       setVerifyingUpi(false);
+    }
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    setReviewError('');
+    setReviewSuccess('');
+    setSubmittingReview(true);
+
+    try {
+      const res = await api.post('/reviews', {
+        orderId: id,
+        rating: reviewRating,
+        comment: reviewComment,
+      });
+
+      if (res.data?.success) {
+        setReviewSuccess(t('reviewSubmittedSuccess', 'Thank you! Your review has been submitted.'));
+        setHasReviewed(true);
+      }
+    } catch (err) {
+      setReviewError(err.response?.data?.message || 'Could not submit review.');
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -474,6 +510,97 @@ export default function OrderDetailsPage() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Rating & Review Section (Only after relevant reservation is marked delivered / COMPLETED) */}
+      {order.status === 'COMPLETED' && (
+        <div className="bg-white rounded-3xl border border-amber-200 p-6 sm:p-8 shadow-sm mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+              <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">{t('customerReviews', 'Customer Ratings & Reviews')}</h3>
+              <p className="text-xs text-slate-500">{t('rateYourExperience', 'Rate your plant pickup experience')}</p>
+            </div>
+          </div>
+
+          {hasReviewed || (order.reviews && order.reviews.length > 0) ? (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-2xl flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span>{t('alreadyReviewed', 'You have already submitted a review for this completed order.')}</span>
+            </div>
+          ) : (
+            <form onSubmit={handleReviewSubmit} className="space-y-4 max-w-lg">
+              {reviewSuccess && (
+                <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl font-semibold">
+                  {reviewSuccess}
+                </div>
+              )}
+              {reviewError && (
+                <div className="p-3 bg-red-50 text-red-800 text-xs rounded-xl font-semibold">
+                  {reviewError}
+                </div>
+              )}
+
+              {/* Star Rating Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  {t('starRating', 'Star Rating')} (1 - 5)
+                </label>
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      type="button"
+                      key={star}
+                      onClick={() => setReviewRating(star)}
+                      className="p-1 hover:scale-110 transition-transform focus:outline-none"
+                    >
+                      <Star
+                        className={`w-7 h-7 ${
+                          star <= reviewRating
+                            ? 'fill-amber-400 text-amber-400'
+                            : 'text-slate-300'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-2 text-sm font-bold text-slate-800">{reviewRating} / 5</span>
+                </div>
+              </div>
+
+              {/* Written Review */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                  {t('reviewComment', 'Your Review / Feedback')}
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Share feedback on seedling health, nursery pickup experience, or variety quality..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submittingReview}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-200 flex items-center gap-2 disabled:bg-slate-300"
+              >
+                {submittingReview ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  t('submitReview', 'Submit Review')
+                )}
+              </button>
+            </form>
           )}
         </div>
       )}

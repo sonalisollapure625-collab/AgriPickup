@@ -4,6 +4,8 @@ import api from '../../services/api.js';
 import PlantSearchBar from '../../components/common/PlantSearchBar.jsx';
 import PlantImage from '../../components/common/PlantImage.jsx';
 import ReservationModal from '../../components/products/ReservationModal.jsx';
+import ShareButton from '../../components/common/ShareButton.jsx';
+import { useLanguage } from '../../context/LanguageContext.jsx';
 import {
   Store,
   MapPin,
@@ -15,9 +17,11 @@ import {
   Tag,
   ArrowRight,
   Filter,
+  Star,
 } from 'lucide-react';
 
 export default function ProductListingPage() {
+  const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const initialCategory = searchParams.get('category') || '';
@@ -195,11 +199,11 @@ export default function ProductListingPage() {
                 <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-emerald-800/80 backdrop-blur-sm text-white text-[11px] font-semibold tracking-wide">
                   {prod.category?.name || 'Plant'}
                 </span>
-                {prod.nursery?.isApproved && (
-                  <span className="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-bold shadow-sm">
-                    Verified
-                  </span>
-                )}
+
+                {/* Share Button on Plant Card */}
+                <div className="absolute top-3 right-3 z-10">
+                  <ShareButton product={prod} />
+                </div>
               </div>
 
               {/* Plant Meta */}
@@ -233,7 +237,7 @@ export default function ProductListingPage() {
                     <span className="text-xs text-slate-500 ml-1">/{prod.unit}</span>
                   </div>
                   <span className="text-xs text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold">
-                    {prod.stockQuantity} in stock
+                    {prod.stockQuantity} {t('inStock', 'in stock')}
                   </span>
                 </div>
 
@@ -243,7 +247,7 @@ export default function ProductListingPage() {
                   className="mt-4 w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all shadow-emerald-100"
                 >
                   <Calendar className="w-3.5 h-3.5" />
-                  Reserve for Pickup
+                  {t('reserve', 'Reserve for Pickup')}
                 </button>
               </div>
             </div>

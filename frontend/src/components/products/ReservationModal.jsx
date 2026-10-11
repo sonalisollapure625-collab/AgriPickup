@@ -15,10 +15,12 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import api from '../../services/api.js';
+import { useLanguage } from '../../context/LanguageContext.jsx';
 import PlantImage from '../common/PlantImage.jsx';
 
 export default function ReservationModal({ product, onClose, onSuccess }) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [quantity, setQuantity] = useState(1);
   const [pickupDate, setPickupDate] = useState('');
@@ -95,7 +97,7 @@ export default function ReservationModal({ product, onClose, onSuccess }) {
             <ShoppingBag className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-slate-900">Reserve & Checkout</h3>
+            <h3 className="text-xl font-bold text-slate-900">{t('reserveAndCheckout', 'Reserve & Checkout')}</h3>
             <p className="text-xs text-slate-500">Secure nursery pickup with verified reservation</p>
           </div>
         </div>
@@ -120,7 +122,7 @@ export default function ReservationModal({ product, onClose, onSuccess }) {
               {product.nursery?.name || 'Verified Nursery'}
             </p>
             <p className="text-[11px] font-semibold text-emerald-600 mt-0.5">
-              In Stock: {availableStock} {product.unit || 'plants'}
+              {t('inStock', 'In Stock')}: {availableStock} {product.unit || 'plants'}
             </p>
           </div>
         </div>

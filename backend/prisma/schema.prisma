@@ -238,6 +238,7 @@ model Order {
   items            OrderItem[]
   payment          Payment?
   deliveryDetails  DeliveryDetails?
+  reviews          Review[]
 
   @@index([customerId])
   @@index([nurseryId])
@@ -289,6 +290,8 @@ model Review {
   id         String   @id @default(uuid())
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId    String?
+  order      Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   nurseryId  String?
   nursery    Nursery? @relation(fields: [nurseryId], references: [id], onDelete: Cascade)
   productId  String?
@@ -298,6 +301,7 @@ model Review {
   createdAt  DateTime @default(now())
 
   @@index([userId])
+  @@index([orderId])
   @@index([nurseryId])
   @@index([productId])
 }

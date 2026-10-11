@@ -3,6 +3,8 @@ import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { Sprout, Stethoscope, Store, ShoppingBag, ShieldCheck, ArrowRight, User, LogOut } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from './context/AuthContext.jsx';
+import { useLanguage } from './context/LanguageContext.jsx';
+import LanguageSelector from './components/common/LanguageSelector.jsx';
 
 // Public Pages
 import HomePage from './pages/public/HomePage.jsx';
@@ -34,6 +36,7 @@ import SellerDashboardPage from './pages/seller/SellerDashboardPage.jsx';
 export default function App() {
   const [apiHealth, setApiHealth] = useState(null);
   const { user, logout, isAuthenticated } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,26 +63,29 @@ export default function App() {
                 Agri<span className="text-emerald-600">Pickup</span>
               </span>
               <span className="block text-[10px] font-medium text-emerald-800 -mt-1 tracking-wide">
-                Fresh Farm Needs, Just a Pickup Away!
+                {t('tagline', 'Fresh Farm Needs, Just a Pickup Away!')}
               </span>
             </div>
           </Link>
 
           {/* Navigation Links */}
-          <nav className="flex items-center gap-1 sm:gap-3">
-            <Link to="/" className="px-3 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors">
-              Home
+          <nav className="flex items-center gap-1 sm:gap-2.5">
+            <Link to="/" className="px-2.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors">
+              {t('navHome', 'Home')}
             </Link>
-            <Link to="/plants" className="px-3 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors">
-              Browse Plants
+            <Link to="/plants" className="px-2.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors">
+              {t('navPlants', 'Browse Plants')}
             </Link>
-            <Link to="/nurseries" className="px-3 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors">
-              Nearby Nurseries
+            <Link to="/nurseries" className="px-2.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors">
+              {t('navNurseries', 'Nearby Nurseries')}
             </Link>
-            <Link to="/plant-doctor" className="px-3 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center gap-1.5 transition-colors border border-emerald-200">
+            <Link to="/plant-doctor" className="px-2.5 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center gap-1.5 transition-colors border border-emerald-200">
               <Stethoscope className="w-4 h-4 text-emerald-600" />
-              <span>Plant Doctor AI</span>
+              <span>{t('navPlantDoctor', 'Plant Doctor AI')}</span>
             </Link>
+
+            {/* Language Selector */}
+            <LanguageSelector />
 
             {isAuthenticated ? (
               <div className="flex items-center gap-1 sm:gap-2">
@@ -88,21 +94,21 @@ export default function App() {
                   className="px-2.5 py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
                 >
                   <User className="w-4 h-4 text-emerald-600" />
-                  <span>{user?.name?.split(' ')[0] || 'Dashboard'}</span>
+                  <span>{user?.name?.split(' ')[0] || t('navDashboard', 'Dashboard')}</span>
                 </Link>
                 {user?.role === 'CUSTOMER' && (
                   <>
                     <Link
                       to="/orders"
-                      className="px-2.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors"
+                      className="px-2 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors"
                     >
-                      My Orders
+                      {t('navOrders', 'My Orders')}
                     </Link>
                     <Link
                       to="/reservations"
-                      className="px-2.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors"
+                      className="px-2 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors"
                     >
-                      My Reservations
+                      {t('navReservations', 'My Reservations')}
                     </Link>
                   </>
                 )}
@@ -111,18 +117,18 @@ export default function App() {
                     logout();
                     navigate('/login');
                   }}
-                  className="px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors ml-1"
+                  className="px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors ml-1"
                 >
-                  Sign Out
+                  {t('navSignOut', 'Sign Out')}
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <Link to="/login" className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:text-emerald-600 rounded-lg transition-colors">
-                  Sign In
+                  {t('navSignIn', 'Sign In')}
                 </Link>
-                <Link to="/register" className="px-3.5 py-1.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors">
-                  Sign Up
+                <Link to="/register" className="px-3 py-1.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors">
+                  {t('navSignUp', 'Sign Up')}
                 </Link>
               </div>
             )}

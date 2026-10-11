@@ -276,7 +276,18 @@ router.patch('/orders/:id/status', authenticate, authorize('SELLER'), async (req
     const { id } = req.params;
     const { status, note } = req.body;
 
-    const validStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'COMPLETED', 'CANCELLED'];
+    const validStatuses = [
+      'PENDING',
+      'CONFIRMED',
+      'PREPARING',
+      'READY_FOR_PICKUP',
+      'OUT_FOR_DELIVERY',
+      'DISPATCHED',
+      'COMPLETED',
+      'DELIVERED',
+      'CANCELLED',
+      'REJECTED',
+    ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -294,7 +305,7 @@ router.patch('/orders/:id/status', authenticate, authorize('SELLER'), async (req
     // Verify order belongs to this seller's nursery
     const order = await prisma.order.findFirst({
       where: { id, nurseryId: { in: nurseryIds } },
-      include: { reservation: true, customer: { include: { user: true } } },
+      include: { reservation: true, customer: { include: { user: true } }, items: true },
     });
 
     if (!order) {
@@ -308,24 +319,33 @@ router.patch('/orders/:id/status', authenticate, authorize('SELLER'), async (req
       CONFIRMED: 'Reservation Confirmed',
       PREPARING: 'Preparing Your Plants',
       READY_FOR_PICKUP: 'Ready for Pickup',
-      COMPLETED: 'Collected / Completed',
+      OUT_FOR_DELIVERY: 'Dispatched for Delivery / Ready',
+      DISPATCHED: 'Dispatched for Delivery / Ready',
+      COMPLETED: 'Collected / Delivered',
+      DELIVERED: 'Collected / Delivered',
       CANCELLED: 'Cancelled / Rejected',
+      REJECTED: 'Cancelled / Rejected',
     };
+
+    // Normalize canonical status for DB enum
+    let canonicalStatus = status;
+    if (status === 'DISPATCHED') canonicalStatus = 'OUT_FOR_DELIVERY';
+    if (status === 'DELIVERED') canonicalStatus = 'COMPLETED';
+    if (status === 'REJECTED') canonicalStatus = 'CANCELLED';
 
     const updatedHistory = [
       ...existingHistory,
       {
-        status,
+        status: canonicalStatus,
         label: statusLabels[status] || status,
         timestamp: now,
-        note: note || `Updated by seller to ${statusLabels[status] || status}.`,
+        note: note || `Updated by nursery to ${statusLabels[status] || status}.`,
       },
     ];
 
-    // Determine DB OrderStatus (Prisma enum OrderStatus values: PENDING, CONFIRMED, READY_FOR_PICKUP, COMPLETED, CANCELLED)
-    let dbOrderStatus = status;
-    if (status === 'PREPARING') {
-      // Keep OrderStatus as CONFIRMED in DB enum while storing PREPARING in statusHistory
+    // Determine DB OrderStatus enum value
+    let dbOrderStatus = canonicalStatus;
+    if (canonicalStatus === 'PREPARING') {
       dbOrderStatus = 'CONFIRMED';
     }
 
@@ -341,8 +361,8 @@ router.patch('/orders/:id/status', authenticate, authorize('SELLER'), async (req
       // Synchronize linked reservation status
       if (order.reservationId) {
         let resStatus = 'CONFIRMED';
-        if (status === 'COMPLETED') resStatus = 'FULFILLED';
-        if (status === 'CANCELLED') resStatus = 'CANCELLED';
+        if (canonicalStatus === 'COMPLETED') resStatus = 'FULFILLED';
+        if (canonicalStatus === 'CANCELLED') resStatus = 'CANCELLED';
 
         await tx.reservation.update({
           where: { id: order.reservationId },
@@ -351,10 +371,27 @@ router.patch('/orders/:id/status', authenticate, authorize('SELLER'), async (req
       }
 
       // If collected / completed and was cash on pickup, update payment to COMPLETED
-      if (status === 'COMPLETED') {
+      if (canonicalStatus === 'COMPLETED') {
         await tx.payment.updateMany({
           where: { orderId: id },
           data: { status: 'COMPLETED' },
+        });
+      }
+
+      // If rejected / cancelled by seller, restock items
+      if (canonicalStatus === 'CANCELLED' && order.status !== 'CANCELLED') {
+        for (const item of order.items || []) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: {
+              stockQuantity: { increment: item.quantity },
+              inStock: true,
+            },
+          });
+        }
+        await tx.payment.updateMany({
+          where: { orderId: id },
+          data: { status: 'FAILED' },
         });
       }
     });

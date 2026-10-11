@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useLanguage } from '../../context/LanguageContext.jsx';
 import api from '../../services/api.js';
 import PlantImage from '../../components/common/PlantImage.jsx';
 import {
@@ -19,16 +20,20 @@ import {
   Clock,
   Check,
   XCircle,
+  Star,
+  MessageSquare,
 } from 'lucide-react';
 
 export default function SellerDashboardPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
 
-  const [activeTab, setActiveTab] = useState('orders'); // 'orders' or 'catalog'
+  const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'catalog', or 'reviews'
   const [nursery, setNursery] = useState(null);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [reviewsData, setReviewsData] = useState({ reviews: [], averageRating: 0, count: 0 });
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -50,10 +55,11 @@ export default function SellerDashboardPage() {
 
   const fetchSellerData = async () => {
     try {
-      const [nurseryRes, categoriesRes, ordersRes] = await Promise.all([
+      const [nurseryRes, categoriesRes, ordersRes, reviewsRes] = await Promise.all([
         api.get('/sellers/my-nursery'),
         api.get('/categories'),
         api.get('/sellers/orders').catch(() => ({ data: { success: true, orders: [] } })),
+        api.get('/reviews/seller-summary').catch(() => ({ data: { success: true, reviews: [], averageRating: 0, count: 0 } })),
       ]);
 
       if (nurseryRes.data?.success) {
@@ -68,6 +74,13 @@ export default function SellerDashboardPage() {
       }
       if (ordersRes.data?.success) {
         setOrders(ordersRes.data.orders || []);
+      }
+      if (reviewsRes.data?.success) {
+        setReviewsData({
+          reviews: reviewsRes.data.reviews || [],
+          averageRating: reviewsRes.data.averageRating || 0,
+          count: reviewsRes.data.count || 0,
+        });
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load seller profile.');
@@ -495,6 +508,21 @@ export default function SellerDashboardPage() {
             {products.length}
           </span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('reviews')}
+          className={`pb-3.5 px-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'reviews'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Star className="w-4 h-4 text-amber-500" />
+          <span>Customer Reviews & Ratings</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800 font-extrabold flex items-center gap-1">
+            ★ {reviewsData.averageRating || '0'} ({reviewsData.count || 0})
+          </span>
+        </button>
       </div>
 
       {/* Tab 1: Incoming Orders & Reservations */}
@@ -614,7 +642,7 @@ export default function SellerDashboardPage() {
                   {/* Status Action Buttons for Seller */}
                   {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
                     <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-2 items-center justify-end">
-                      <span className="text-xs font-semibold text-slate-500 mr-2">Update Stage:</span>
+                      <span className="text-xs font-semibold text-slate-500 mr-2">{t('updateStage', 'Update Stage')}:</span>
 
                       {order.status === 'PENDING' && (
                         <button
@@ -622,7 +650,7 @@ export default function SellerDashboardPage() {
                           disabled={updatingOrderId === order.id}
                           className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors disabled:bg-slate-300"
                         >
-                          Confirm Reservation
+                          {t('confirmResAction', 'Accept / Confirm')}
                         </button>
                       )}
 
@@ -632,40 +660,50 @@ export default function SellerDashboardPage() {
                           disabled={updatingOrderId === order.id}
                           className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors disabled:bg-slate-300"
                         >
-                          Mark Preparing Plants
+                          {t('markPreparing', 'Mark Preparing')}
                         </button>
                       )}
 
-                      {order.status === 'PREPARING' && (
+                      {(order.status === 'PREPARING' || order.status === 'CONFIRMED') && (
                         <button
                           onClick={() => handleUpdateOrderStatus(order.id, 'READY_FOR_PICKUP')}
                           disabled={updatingOrderId === order.id}
                           className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors disabled:bg-slate-300"
                         >
-                          Mark Ready for Pickup
+                          {t('markReady', 'Mark Ready for Pickup')}
                         </button>
                       )}
 
-                      {order.status === 'READY_FOR_PICKUP' && (
+                      {(order.status === 'READY_FOR_PICKUP' || order.status === 'PREPARING') && (
+                        <button
+                          onClick={() => handleUpdateOrderStatus(order.id, 'OUT_FOR_DELIVERY')}
+                          disabled={updatingOrderId === order.id}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors disabled:bg-slate-300"
+                        >
+                          {t('markDispatched', 'Mark Dispatched')}
+                        </button>
+                      )}
+
+                      {(order.status === 'READY_FOR_PICKUP' || order.status === 'OUT_FOR_DELIVERY') && (
                         <button
                           onClick={() => handleUpdateOrderStatus(order.id, 'COMPLETED')}
                           disabled={updatingOrderId === order.id}
                           className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors disabled:bg-slate-300"
                         >
-                          Mark Collected / Completed
+                          {t('markDelivered', 'Mark Delivered / Collected')}
                         </button>
                       )}
 
                       <button
                         onClick={() => {
-                          if (window.confirm('Are you sure you want to reject/cancel this order? Stock will be restocked.')) {
+                          if (window.confirm('Are you sure you want to reject/cancel this reservation? Stock will be restocked.')) {
                             handleUpdateOrderStatus(order.id, 'CANCELLED');
                           }
                         }}
                         disabled={updatingOrderId === order.id}
                         className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors disabled:opacity-50"
                       >
-                        Reject / Cancel
+                        {t('rejectResAction', 'Reject / Cancel')}
                       </button>
                     </div>
                   )}
@@ -765,6 +803,96 @@ export default function SellerDashboardPage() {
           </div>
         )}
       </div>
+      )}
+
+      {/* Tab 3: Customer Reviews & Ratings */}
+      {activeTab === 'reviews' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">{t('customerReviews', 'Customer Ratings & Reviews')}</h2>
+              <p className="text-xs text-slate-500">Genuine feedback from customers whose plant reservations were delivered</p>
+            </div>
+
+            {/* Average Rating Card */}
+            <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 px-4 py-2 rounded-2xl">
+              <div className="text-2xl font-black text-amber-900">{reviewsData.averageRating || '0.0'}</div>
+              <div>
+                <div className="flex text-amber-500">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-3.5 h-3.5 ${
+                        star <= Math.round(reviewsData.averageRating)
+                          ? 'fill-amber-400 text-amber-400'
+                          : 'text-amber-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="text-[11px] text-amber-800 font-medium">
+                  {reviewsData.count || 0} {t('basedOnReviews', 'ratings')}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="py-12 flex justify-center text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+            </div>
+          ) : !reviewsData.reviews || reviewsData.reviews.length === 0 ? (
+            <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 p-8">
+              <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-800">{t('noReviewsYet', 'No customer reviews yet')}</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                Reviews will appear here as soon as customers collect or receive their reserved plants.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {reviewsData.reviews.map((rev) => (
+                <div key={rev.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5 text-amber-500">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-4 h-4 ${
+                              star <= rev.rating
+                                ? 'fill-amber-400 text-amber-400'
+                                : 'text-slate-200'
+                            }`}
+                          />
+                        ))}
+                        <span className="text-xs font-bold text-slate-700 ml-1">({rev.rating}/5)</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {new Date(rev.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-slate-800 font-medium italic">
+                      "{rev.comment || 'Verified purchase'}"
+                    </p>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-semibold text-slate-700">
+                      {rev.user?.name || 'Customer'}
+                    </span>
+                    {rev.product?.name && (
+                      <span className="text-emerald-700 font-medium truncate max-w-[160px]">
+                        🌱 {rev.product.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
